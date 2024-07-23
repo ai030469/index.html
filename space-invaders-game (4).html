@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="he">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Space Invaders</title>
+    <script src="https://unpkg.com/react@17/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@17/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: black; }
+        #game-container { width: 100vw; height: 100vh; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+    <script type="text/babel">
+        const { useState, useEffect, useCallback } = React;
+
+        const GAME_WIDTH = 800;
+        const GAME_HEIGHT = 600;
+        const PLAYER_WIDTH = 50;
+        const PLAYER_HEIGHT = 30;
+        const BULLET_WIDTH = 3;
+        const BULLET_HEIGHT = 15;
+        const INVADER_WIDTH = 40;
+        const INVADER_HEIGHT = 30;
+        const INVADER_ROWS = 3;
+        const INVADER_COLUMNS = 8;
+        const STAR_COUNT = 100;
+
+        function Star({ x, y }) {
+            return <circle cx={x} cy={y} r={Math.random() * 1.5 + 0.5} fill="white" />;
+        }
+
+        function GameComponent() {
+            const [playerPosition, setPlayerPosition] = useState(GAME_WIDTH / 2 - PLAYER_WIDTH / 2);
+            const [bullets, setBullets] = useState([]);
+            const [invaders, setInvaders] = useState([]);
+            const [gameOver, setGameOver] = useState(false);
+            const [stars] = useState(() => 
+                Array.from({ length: STAR_COUNT }, () => ({
+                    x: Math.random() * GAME_WIDTH,
+                    y: Math.random() * GAME_HEIGHT
+                }))
+            );
+
+            const movePlayer = useCallback((e) => {
+                if (e.key === 'ArrowLeft') {
+                    setPlayerPosition(prev => Math.max(0, prev - 10));
+                } else if (e.key === 'ArrowRight') {
+                    setPlayerPosition(prev => Math.min(GAME_WIDTH - PLAYER_WIDTH, prev + 10));
+                } else if (e.key === ' ') {
+                    setBullets(prev => [...prev, { x: playerPosition + PLAYER_WIDTH / 2 - BULLET_WIDTH / 2, y: GAME_HEIGHT - PLAYER_HEIGHT - BULLET_HEIGHT }]);
+                }
+            }, [playerPosition]);
+
+            useEffect(() => {
+                window.addEventListener('keydown', movePlayer);
+                return () => window.removeEventListener('keydown', movePlayer);
+            }, [movePlayer]);
+
+            useEffect(() => {
+                const initialInvaders = [];
+                for (let row = 0; row < INVADER_ROWS; row++) {
+                    for (let col = 0; col < INVADER_COLUMNS; col++) {
+                        initialInvaders.push({
+                            x: col * (INVADER_WIDTH + 20) + 50,
+                            y: row * (INVADER_HEIGHT + 20) + 50,
+                        });
+                    }
+                }
+                setInvaders(initialInvaders);
+            }, []);
+
+            useEffect(() => {
+                const gameLoop = setInterval(() => {
+                    setBullets(prev => prev.map(bullet => ({ ...bullet, y: bullet.y - 5 })).filter(bullet => bullet.y > 0));
+                    setInvaders(prev => {
+                        let newInvaders = prev.map(invader => ({ ...invader, y: invader.y + 0.2 }));
+                        bullets.forEach(bullet => {
+                            newInvaders = newInvaders.filter(invader => 
+                                !(bullet.x < invader.x + INVADER_WIDTH &&
+                                  bullet.x + BULLET_WIDTH > invader.x &&
+                                  bullet.y < invader.y + INVADER_HEIGHT &&
+                                  bullet.y + BULLET_HEIGHT > invader.y)
+                            );
+                        });
+                        if (newInvaders.some(invader => invader.y + INVADER_HEIGHT >= GAME_HEIGHT - PLAYER_HEIGHT)) {
+                            setGameOver(true);
+                        }
+                        return newInvaders;
+                    });
+                }, 1000 / 60);
+
+                return () => clearInterval(gameLoop);
+            }, [bullets]);
+
+            if (gameOver) {
+                return <div style={{ color: 'white', fontSize: '24px', textAlign: 'center', paddingTop: '200px' }}>Game Over!</div>;
+            }
+
+            return (
+                <svg width={GAME_WIDTH} height={GAME_HEIGHT} style={{background: 'black'}}>
+                    {stars.map((star, index) => (
+                        <Star key={index} x={star.x} y={star.y} />
+                    ))}
+                    <path d={`M${playerPosition},${GAME_HEIGHT} L${playerPosition + PLAYER_WIDTH / 2},${GAME_HEIGHT - PLAYER_HEIGHT} L${playerPosition + PLAYER_WIDTH},${GAME_HEIGHT} Z`} fill="orange" />
+                    {bullets.map((bullet, index) => (
+                        <rect key={index} x={bullet.x} y={bullet.y} width={BULLET_WIDTH} height={BULLET_HEIGHT} fill="red" />
+                    ))}
+                    {invaders.map((invader, index) => (
+                        <path key={index} d={`M${invader.x},${invader.y + INVADER_HEIGHT / 2} L${invader.x + INVADER_WIDTH / 2},${invader.y} L${invader.x + INVADER_WIDTH},${invader.y + INVADER_HEIGHT / 2} L${invader.x + INVADER_WIDTH / 2},${invader.y + INVADER_HEIGHT} Z`} fill="blue" />
+                    ))}
+                </svg>
+            );
+        }
+
+        ReactDOM.render(<GameComponent />, document.getElementById('root'));
+    </script>
+</body>
+</html>
